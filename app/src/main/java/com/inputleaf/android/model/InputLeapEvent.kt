@@ -20,6 +20,8 @@ sealed class InputLeapEvent {
     object Leave : InputLeapEvent()
     object KeepAlive : InputLeapEvent()
     object ResetOptions : InputLeapEvent()
+    /** DSOP: option id (four-char code) to value, in the order the server sent them. */
+    data class SetOptions(val options: Map<Int, Int>) : InputLeapEvent()
     // Keyboard
     data class KeyDown(val keyId: Int, val mask: Int, val scancode: Int) : InputLeapEvent()
     data class KeyUp(val keyId: Int, val mask: Int, val scancode: Int) : InputLeapEvent()

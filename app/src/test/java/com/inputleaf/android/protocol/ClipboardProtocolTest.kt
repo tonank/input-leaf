@@ -126,6 +126,37 @@ class ClipboardProtocolTest {
         assertThrows(ProtocolException::class.java) { parse("DCLP", bad) }
     }
 
+    @Test fun `option codes pack four ASCII characters big-endian`() {
+        assertThat(ProtocolConstants.OPTION_CLIPBOARD_SHARING).isEqualTo(0x434C5053)
+        assertThat(ProtocolConstants.OPTION_CLIPBOARD_SIZE).isEqualTo(0x434C535A)
+    }
+
+    @Test fun `parser reads DSOP as option pairs`() {
+        val payload = u32(4) +
+            u32(ProtocolConstants.OPTION_CLIPBOARD_SHARING) + u32(0) +
+            u32(ProtocolConstants.OPTION_CLIPBOARD_SIZE) + u32(3072)
+
+        assertThat(parse("DSOP", payload)).isEqualTo(
+            InputLeapEvent.SetOptions(
+                mapOf(
+                    ProtocolConstants.OPTION_CLIPBOARD_SHARING to 0,
+                    ProtocolConstants.OPTION_CLIPBOARD_SIZE to 3072,
+                ),
+            ),
+        )
+    }
+
+    @Test fun `parser reads an empty DSOP and drops a trailing id without a value`() {
+        assertThat(parse("DSOP", u32(0))).isEqualTo(InputLeapEvent.SetOptions(emptyMap()))
+        assertThat(parse("DSOP", u32(1) + u32(ProtocolConstants.OPTION_CLIPBOARD_SHARING)))
+            .isEqualTo(InputLeapEvent.SetOptions(emptyMap()))
+    }
+
+    @Test fun `parser rejects a DSOP whose count disagrees with the frame`() {
+        assertThrows(ProtocolException::class.java) { parse("DSOP", u32(2) + u32(1)) }
+        assertThrows(ProtocolException::class.java) { parse("DSOP", byteArrayOf()) }
+    }
+
     @Test fun `clipboard data toString never includes the contents`() {
         val event = InputLeapEvent.ClipboardData(0, 1, ClipboardCodec.MARK_CHUNK, "secret".toByteArray())
 

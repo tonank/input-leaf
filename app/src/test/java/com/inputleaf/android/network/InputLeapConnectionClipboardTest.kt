@@ -4,6 +4,7 @@ import com.google.common.truth.Truth.assertThat
 import com.inputleaf.android.model.InputLeapEvent
 import com.inputleaf.android.protocol.ClipboardAssembler
 import com.inputleaf.android.protocol.ClipboardCodec
+import com.inputleaf.android.protocol.ProtocolConstants
 import com.inputleaf.android.protocol.ProtocolParser
 import com.inputleaf.android.protocol.ProtocolWriter
 import com.inputleaf.android.service.ClipboardContent
@@ -116,6 +117,40 @@ class InputLeapConnectionClipboardTest {
                 val data = messages[1] as InputLeapEvent.ClipboardData
                 assertThat(data.mark).isEqualTo(ClipboardCodec.MARK_COMPLETE)
                 assertThat(textOf(listOf(data))).isEqualTo("legacy")
+            }
+        }
+    }
+
+    @Test fun `clipboard options from the handshake DSOP are kept on the connection`() = runBlocking<Unit> {
+        LoopbackServer { socket, _ ->
+            val input = DataInputStream(socket.inputStream)
+            val output = DataOutputStream(socket.outputStream)
+            writeFrame(output, helloBody(8))
+            readFrame(input) // client hello
+            writeFrame(output, "QINF".toByteArray())
+            readFrame(input) // DINF
+            writeFrame(output, "CIAK".toByteArray())
+            writeFrame(output, "CROP".toByteArray())
+            writeFrame(
+                output,
+                ByteArrayOutputStream().also { bytes ->
+                    DataOutputStream(bytes).use {
+                        it.write("DSOP".toByteArray())
+                        it.writeInt(4)
+                        it.writeInt(ProtocolConstants.OPTION_CLIPBOARD_SHARING); it.writeInt(1)
+                        it.writeInt(ProtocolConstants.OPTION_CLIPBOARD_SIZE); it.writeInt(3072)
+                    }
+                }.toByteArray(),
+            )
+            socket.inputStream.read()
+        }.use { server ->
+            connection(server.port).useConnection { connection ->
+                assertThat(connection.connect("android", 1920, 1080)).isInstanceOf(ConnectResult.Ok::class.java)
+
+                assertThat(connection.handshakeOptions).containsExactly(
+                    ProtocolConstants.OPTION_CLIPBOARD_SHARING, 1,
+                    ProtocolConstants.OPTION_CLIPBOARD_SIZE, 3072,
+                )
             }
         }
     }

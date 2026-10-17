@@ -15,6 +15,7 @@ object ProtocolConstants {
     const val TAG_LEAVE         = "COUT"
     const val TAG_KEEPALIVE     = "CALV"
     const val TAG_RESET_OPTIONS = "CROP"
+    const val TAG_SET_OPTIONS   = "DSOP"
     const val TAG_KEY_DOWN      = "DKDN"
     const val TAG_KEY_DOWN_LANG = "DKDL"
     const val TAG_KEY_UP        = "DKUP"
@@ -35,6 +36,16 @@ object ProtocolConstants {
 
     /** First minor version that splits DCLP into start/chunk/end messages. */
     const val CLIPBOARD_CHUNKED_MINOR = 6
+
+    // DSOP option ids are four ASCII characters packed big-endian.
+    val OPTION_CLIPBOARD_SHARING = optionCode("CLPS")
+    /** Maximum clipboard the server accepts, in KB; 0 disables sharing. */
+    val OPTION_CLIPBOARD_SIZE = optionCode("CLSZ")
+
+    fun optionCode(code: String): Int {
+        require(code.length == 4) { "Option codes are four characters" }
+        return code.fold(0) { acc, c -> (acc shl 8) or (c.code and 0xFF) }
+    }
 
     // Client→Server write-only tags (never used in parser when-branches)
     const val TAG_HELLO_BACK    = "HELO" // same wire tag as TAG_HELLO — write-only

@@ -62,6 +62,14 @@ class InputLeapConnection(
     var protocolMinor: Int = ProtocolConstants.PROTOCOL_MINOR
         private set
 
+    /**
+     * Options from the handshake's DSOP. The read loop only starts after it, so these
+     * never reach [events]; later DSOP messages do.
+     */
+    @Volatile
+    var handshakeOptions: Map<Int, Int> = emptyMap()
+        private set
+
     /** Version advertised by the server before client-side minor-version negotiation. */
     data class ServerBanner(val major: Int, val minor: Int, val name: String = "")
 
@@ -328,12 +336,14 @@ class InputLeapConnection(
                     is InputLeapEvent.KeepAlive -> {
                         writer?.writeKeepAlive()
                     }
-                    is InputLeapEvent.Unhandled -> {
-                        when (event.tag) {
-                            // CIAK only acknowledges dimensions. Synergy can still send
-                            // EUNK after it; DSOP is the server's session acceptance.
-                            "DSOP" -> if (dinfSent) optionsReceived = true
-                        }
+                    // CIAK only acknowledges dimensions. Synergy can still send EUNK
+                    // after it; DSOP is the server's session acceptance.
+                    is InputLeapEvent.SetOptions -> {
+                        handshakeOptions = handshakeOptions + event.options
+                        if (dinfSent) optionsReceived = true
+                    }
+                    is InputLeapEvent.ResetOptions -> {
+                        handshakeOptions = emptyMap()
                     }
                     is InputLeapEvent.Incompatible -> {
                         logE("Server rejected handshake: $event")

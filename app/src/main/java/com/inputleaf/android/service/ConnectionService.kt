@@ -321,7 +321,7 @@ class ConnectionService : Service() {
                         applyLocal = { content -> scope.launch { deviceClipboard.write(content) } },
                         sendGrab = { id, seq -> conn.sendClipboardGrab(id, seq) },
                         sendData = { id, seq, data -> conn.sendClipboard(id, seq, data) },
-                    )
+                    ).also { it.onOptions(conn.handshakeOptions) }
                     conn.clearHandshakeTimeout()
                     startEventLoop(conn, serverIp, screenName, generation)
                     startKeepAliveMonitor(conn, generation)
@@ -377,7 +377,12 @@ class ConnectionService : Service() {
                 if (!coordinator.isCurrentGeneration(generation)) return@collect
                 clipboardSync?.let { clipboard ->
                     if (clipboard.onServerEvent(event)) return@collect
-                    if (event is InputLeapEvent.Enter) clipboard.onEnter(event.seqNum)
+                    when (event) {
+                        is InputLeapEvent.Enter -> clipboard.onEnter(event.seqNum)
+                        is InputLeapEvent.SetOptions -> clipboard.onOptions(event.options)
+                        is InputLeapEvent.ResetOptions -> clipboard.onResetOptions()
+                        else -> Unit
+                    }
                 }
                 when (val result = coordinator.processEvent(event, generation, activePolicy)) {
                     is CoordinatorEventResult.Enter -> {

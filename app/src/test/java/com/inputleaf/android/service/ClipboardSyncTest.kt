@@ -3,6 +3,7 @@ package com.inputleaf.android.service
 import com.google.common.truth.Truth.assertThat
 import com.inputleaf.android.model.InputLeapEvent
 import com.inputleaf.android.protocol.ClipboardCodec
+import com.inputleaf.android.protocol.ProtocolConstants
 import org.junit.Test
 
 class ClipboardSyncTest {
@@ -111,6 +112,56 @@ class ClipboardSyncTest {
 
         assertThat(grabs).isEmpty()
         assertThat(sent).isEmpty()
+    }
+
+    @Test fun `sharing switched off by the server stops both directions`() {
+        sync.onOptions(mapOf(ProtocolConstants.OPTION_CLIPBOARD_SHARING to 0))
+        sync.onEnter(1)
+        serverSends("from pc")
+        local = ClipboardContent("from tablet")
+        sync.onLocalChanged()
+        sync.onLeave()
+
+        assertThat(applied).isEmpty()
+        assertThat(grabs).isEmpty()
+        assertThat(sent).isEmpty()
+    }
+
+    @Test fun `a zero size limit also switches sharing off`() {
+        sync.onOptions(mapOf(ProtocolConstants.OPTION_CLIPBOARD_SIZE to 0))
+        sync.onEnter(1)
+        local = ClipboardContent("from tablet")
+        sync.onLeave()
+
+        assertThat(sent).isEmpty()
+    }
+
+    @Test fun `a clipboard at or over the server limit is not sent`() {
+        sync.onOptions(mapOf(ProtocolConstants.OPTION_CLIPBOARD_SIZE to 1))
+        sync.onEnter(1)
+        // 4-byte count + 8-byte format header + 1012 bytes = exactly the 1 KB limit.
+        local = ClipboardContent("x".repeat(1024 - 12))
+        sync.onLeave()
+        assertThat(sent).isEmpty()
+
+        local = ClipboardContent("x".repeat(1024 - 13))
+        sync.onEnter(2)
+        sync.onLeave()
+        assertThat(sent.map { it.second }).containsExactly(2)
+    }
+
+    @Test fun `options keep values the server did not resend, and reset restores defaults`() {
+        sync.onOptions(mapOf(ProtocolConstants.OPTION_CLIPBOARD_SHARING to 0))
+        sync.onOptions(mapOf(ProtocolConstants.OPTION_CLIPBOARD_SIZE to 3072))
+        sync.onEnter(1)
+        local = ClipboardContent("still off")
+        sync.onLeave()
+        assertThat(sent).isEmpty()
+
+        sync.onResetOptions()
+        sync.onEnter(2)
+        sync.onLeave()
+        assertThat(sent).containsExactly(Triple(0, 2, "still off"))
     }
 
     @Test fun `other events pass through`() {

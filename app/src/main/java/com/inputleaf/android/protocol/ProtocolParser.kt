@@ -85,6 +85,7 @@ class ProtocolParser(input: DataInputStream) {
             requireExact(payload.size, 0, tag)
             InputLeapEvent.ResetOptions
         }
+        ProtocolConstants.TAG_SET_OPTIONS -> parseSetOptions(tag, payload)
         ProtocolConstants.TAG_KEY_DOWN -> {
             requireExact(payload.size, 6, tag)
             InputLeapEvent.KeyDown(payload.u16(0), payload.u16(2), payload.u16(4))
@@ -159,6 +160,20 @@ class ProtocolParser(input: DataInputStream) {
             InputLeapEvent.BadMessage
         }
         else -> InputLeapEvent.Unhandled(tag)
+    }
+
+    /** DSOP%4I: a count, then that many 32-bit values forming (option id, value) pairs. */
+    private fun parseSetOptions(tag: String, payload: ByteArray): InputLeapEvent {
+        requireAtLeast(payload.size, 4, "payload", tag)
+        val count = payload.u32(0)
+        requireExact(payload.size.toLong(), 4L + count * 4, "payload", tag)
+        val options = LinkedHashMap<Int, Int>()
+        // An odd count leaves an id without a value; Deskflow skips it too.
+        for (pair in 0 until (count / 2).toInt()) {
+            val offset = 4 + pair * 8
+            options[payload.s32(offset)] = payload.s32(offset + 4)
+        }
+        return InputLeapEvent.SetOptions(options)
     }
 
     /** 1.6+: DCLP%1i%4i%1i%s, one of start/chunk/end. Earlier: DCLP%1i%4i%s, the whole clipboard. */
