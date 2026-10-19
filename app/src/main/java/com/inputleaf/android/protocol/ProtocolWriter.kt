@@ -36,6 +36,19 @@ class ProtocolWriter(output: OutputStream) {
 
     fun writeInfoAck() = frame("CIAK") {}
 
+    /** Tells the server this screen now owns clipboard [id]. */
+    fun writeGrabClipboard(id: Int, seqNum: Int) = frame(ProtocolConstants.TAG_GRAB_CLIPBOARD) {
+        writeByte(id); writeInt(seqNum)
+    }
+
+    /** One DCLP message. [mark] is null before protocol 1.6, which has no chunk marks. */
+    fun writeClipboard(id: Int, seqNum: Int, mark: Int?, data: ByteArray) =
+        frame(ProtocolConstants.TAG_CLIPBOARD) {
+            writeByte(id); writeInt(seqNum)
+            if (mark != null) writeByte(mark)
+            writeInt(data.size); write(data)
+        }
+
     private fun frame(tag: String, block: DataOutputStream.() -> Unit) {
         val buf = java.io.ByteArrayOutputStream()
         val tmp = DataOutputStream(buf)

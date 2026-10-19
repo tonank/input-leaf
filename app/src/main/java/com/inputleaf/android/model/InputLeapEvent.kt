@@ -30,6 +30,14 @@ sealed class InputLeapEvent {
     data class MouseDown(val buttonId: Int) : InputLeapEvent()
     data class MouseUp(val buttonId: Int) : InputLeapEvent()
     data class MouseWheel(val xDelta: Int, val yDelta: Int) : InputLeapEvent()
+    // Clipboard
+    /** Another screen took ownership of clipboard [id]. */
+    data class ClipboardGrab(val id: Int, val seqNum: Int) : InputLeapEvent()
+    /** One DCLP message; [mark] is a ClipboardCodec MARK_* value. */
+    class ClipboardData(val id: Int, val seqNum: Int, val mark: Int, val data: ByteArray) : InputLeapEvent() {
+        // Never log clipboard contents; the read loop logs every event.
+        override fun toString() = "ClipboardData(id=$id, seqNum=$seqNum, mark=$mark, ${data.size} bytes)"
+    }
     // Errors
     data class Incompatible(val major: Int, val minor: Int) : InputLeapEvent()
     object Busy : InputLeapEvent()

@@ -14,6 +14,10 @@ class ProtocolParser(input: DataInputStream) {
     constructor(input: InputStream) : this(DataInputStream(input))
     private val input = input
 
+    /** Negotiated minor version; set after the hello exchange. DCLP framing depends on it. */
+    @Volatile
+    var protocolMinor: Int = ProtocolConstants.PROTOCOL_MINOR
+
     fun readNext(): InputLeapEvent = try {
         val length = input.readInt()
         if (length !in 4..ProtocolConstants.MAX_MESSAGE_LEN) {
@@ -133,6 +137,11 @@ class ProtocolParser(input: DataInputStream) {
             requireExact(payload.size, 4, tag)
             InputLeapEvent.MouseWheel(payload.s16(0), payload.s16(2))
         }
+        ProtocolConstants.TAG_GRAB_CLIPBOARD -> {
+            requireExact(payload.size, 5, tag)
+            InputLeapEvent.ClipboardGrab(payload.u8(0), payload.s32(1))
+        }
+        ProtocolConstants.TAG_CLIPBOARD -> parseClipboard(tag, payload)
         ProtocolConstants.TAG_INCOMPATIBLE -> {
             requireExact(payload.size, 4, tag)
             InputLeapEvent.Incompatible(payload.u16(0), payload.u16(2))
@@ -150,6 +159,21 @@ class ProtocolParser(input: DataInputStream) {
             InputLeapEvent.BadMessage
         }
         else -> InputLeapEvent.Unhandled(tag)
+    }
+
+    /** 1.6+: DCLP%1i%4i%1i%s, one of start/chunk/end. Earlier: DCLP%1i%4i%s, the whole clipboard. */
+    private fun parseClipboard(tag: String, payload: ByteArray): InputLeapEvent {
+        val chunked = protocolMinor >= ProtocolConstants.CLIPBOARD_CHUNKED_MINOR
+        val header = if (chunked) 6 else 5
+        requireAtLeast(payload.size, header + 4, "payload", tag)
+        val length = payload.u32(header)
+        requireExact(payload.size.toLong(), header + 4L + length, "payload", tag)
+        return InputLeapEvent.ClipboardData(
+            id = payload.u8(0),
+            seqNum = payload.s32(1),
+            mark = if (chunked) payload.u8(5) else ClipboardCodec.MARK_COMPLETE,
+            data = payload.copyOfRange(header + 4, payload.size),
+        )
     }
 
     private fun requireExact(actual: Int, expected: Int, tag: String) {

@@ -29,6 +29,13 @@ object ProtocolConstants {
     const val TAG_UNKNOWN       = "EUNK"
     const val TAG_BAD           = "EBAD"
 
+    // Both directions
+    const val TAG_CLIPBOARD      = "DCLP"
+    const val TAG_GRAB_CLIPBOARD = "CCLP"
+
+    /** First minor version that splits DCLP into start/chunk/end messages. */
+    const val CLIPBOARD_CHUNKED_MINOR = 6
+
     // Client→Server write-only tags (never used in parser when-branches)
     const val TAG_HELLO_BACK    = "HELO" // same wire tag as TAG_HELLO — write-only
     const val TAG_DATA_INFO     = "DINF"

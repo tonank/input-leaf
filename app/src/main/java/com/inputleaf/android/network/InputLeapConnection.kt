@@ -2,6 +2,7 @@ package com.inputleaf.android.network
 
 import android.util.Log
 import com.inputleaf.android.model.InputLeapEvent
+import com.inputleaf.android.protocol.ClipboardCodec
 import com.inputleaf.android.protocol.ProtocolConstants
 import com.inputleaf.android.protocol.ProtocolParser
 import com.inputleaf.android.protocol.ProtocolWriter
@@ -55,6 +56,11 @@ class InputLeapConnection(
     private val readerScope = CoroutineScope(SupervisorJob() + Dispatchers.IO)
     private var readJob: Job? = null
     private val connectMutex = Mutex()
+
+    /** Minor version agreed in the hello exchange; DCLP framing differs before 1.6. */
+    @Volatile
+    var protocolMinor: Int = ProtocolConstants.PROTOCOL_MINOR
+        private set
 
     /** Version advertised by the server before client-side minor-version negotiation. */
     data class ServerBanner(val major: Int, val minor: Int, val name: String = "")
@@ -305,6 +311,8 @@ class InputLeapConnection(
                                 minor = negotiatedMinor,
                                 protocol = negotiatedProtocol,
                             )
+                            protocolMinor = negotiatedMinor
+                            parser.protocolMinor = negotiatedMinor
                             helloSent = true
                             logD(
                                 "Handshake sent ${negotiatedProtocol.magic} client hello " +
@@ -404,6 +412,19 @@ class InputLeapConnection(
         writer?.writeDataInfo(w, h, 0, 0, mx, my)
     fun sendKeepAlive() = writer?.writeKeepAlive()
     fun sendInfoAck() = writer?.writeInfoAck()
+    fun sendClipboardGrab(id: Int, seqNum: Int) = writer?.writeGrabClipboard(id, seqNum)
+
+    /** Sends a marshalled clipboard, chunked from protocol 1.6 on. Blocking; not for the main thread. */
+    fun sendClipboard(id: Int, seqNum: Int, marshalled: ByteArray) {
+        val w = writer ?: return
+        if (protocolMinor >= ProtocolConstants.CLIPBOARD_CHUNKED_MINOR) {
+            for ((mark, chunk) in ClipboardCodec.chunks(marshalled)) {
+                w.writeClipboard(id, seqNum, mark, chunk)
+            }
+        } else {
+            w.writeClipboard(id, seqNum, null, marshalled)
+        }
+    }
 
     fun close() {
         readJob?.cancel()
