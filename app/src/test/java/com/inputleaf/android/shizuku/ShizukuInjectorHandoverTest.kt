@@ -1,6 +1,7 @@
 package com.inputleaf.android.shizuku
 
 import android.content.ServiceConnection
+import android.os.DeadObjectException
 import android.os.IBinder
 import com.google.common.truth.Truth.assertThat
 import com.inputleaf.android.privilege.PrivilegeKind
@@ -60,6 +61,31 @@ class ShizukuInjectorHandoverTest {
 
         assertThat(sharesPrivilegedService(root, otherRoot)).isTrue()
         assertThat(sharesPrivilegedService(root, shizuku)).isFalse()
+    }
+
+    @Test
+    fun `clipboard is read through the bound injector and not while unbound`() = runBlocking<Unit> {
+        val host = RecordingHost(PrivilegeKind.SHIZUKU)
+        val injector = ShizukuInputInjector(100, 100, host)
+        `when`(host.service.readClipboardText()).thenReturn("copied")
+
+        assertThat(injector.readClipboardText()).isNull()
+        injector.connect()
+
+        assertThat(injector.readClipboardText()).isEqualTo("copied")
+    }
+
+    @Test
+    fun `a dead injector reading the clipboard drops the session`() = runBlocking<Unit> {
+        val host = RecordingHost(PrivilegeKind.SHIZUKU)
+        val injector = ShizukuInputInjector(100, 100, host)
+        injector.connect()
+        var disconnected = false
+        injector.onServiceDisconnectedCallback = { disconnected = true }
+        `when`(host.service.readClipboardText()).thenThrow(DeadObjectException())
+
+        assertThat(injector.readClipboardText()).isNull()
+        assertThat(disconnected).isTrue()
     }
 
     @Test

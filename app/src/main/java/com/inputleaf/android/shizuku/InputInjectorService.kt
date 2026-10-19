@@ -456,6 +456,8 @@ class InputInjectorService : IInputInjector.Stub {
         x: Int, y: Int, maxX: Int, maxY: Int, inRange: Boolean, tip: Boolean, barrel: Boolean,
     ): Boolean = synchronized(penLock) { pen }?.report(x, y, maxX, maxY, inRange, tip, barrel) ?: false
 
+    override fun readClipboardText(): String? = HiddenClipboard.readText()
+
     internal fun deathRecipientForTest(): android.os.IBinder.DeathRecipient =
         synchronized(clientLock) { activeDeathRecipient ?: android.os.IBinder.DeathRecipient {} }
 }

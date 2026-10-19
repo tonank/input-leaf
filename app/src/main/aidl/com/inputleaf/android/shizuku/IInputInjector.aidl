@@ -129,4 +129,11 @@ interface IInputInjector {
 
     /** Send an absolute pen report in screen pixels. */
     boolean injectHidPen(int x, int y, int maxX, int maxY, boolean inRange, boolean tip, boolean barrel);
+
+    /**
+     * Primary clip as text, read with shell's READ_CLIPBOARD_IN_BACKGROUND. Android 10+
+     * hides the clipboard from background apps that are not the default IME, so the app
+     * itself often cannot see what the user copied. Null when empty or unreadable.
+     */
+    String readClipboardText();
 }

@@ -88,9 +88,9 @@ internal class ShizukuUserServiceHost : PrivilegedUserServiceHost {
     }
 
     companion object {
-        // Bumped for the attachClient and Enter-warp AIDL additions: a cached older
-        // UserService does not implement them and would throw on every bind.
-        private const val SHIZUKU_SERVICE_VERSION = 6
+        // Bumped for each AIDL addition (attachClient, Enter warp, readClipboardText): a
+        // cached older UserService does not implement them and would throw on every bind.
+        private const val SHIZUKU_SERVICE_VERSION = 7
 
         @Volatile
         private var userServiceFailed = false

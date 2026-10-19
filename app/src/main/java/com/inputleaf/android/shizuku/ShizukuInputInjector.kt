@@ -397,6 +397,9 @@ class ShizukuInputInjector internal constructor(
         }
     }
 
+    /** The device clipboard as seen by the privileged process; null when unbound or unreadable. */
+    fun readClipboardText(): String? = remote("Failed to read clipboard", null) { it.readClipboardText() }
+
     fun tryHidKey(evdevCode: Int, isDown: Boolean): Boolean {
         if (evdevCode == 0) return false
         return remote(null, false) { it.injectHidKey(evdevCode, isDown) }

@@ -43,6 +43,9 @@ ignore:
   # (StandaloneInjectorLauncher, InjectorHandoffProvider) is tested and counted.
   - "app/src/main/java/com/inputleaf/android/shizuku/StandaloneInjectorMain.kt"
   - "app/src/main/java/com/inputleaf/android/shizuku/InjectorHandoff.kt"
+  # Runs only in the injector process, through the hidden ServiceManager and IClipboard.
+  # HiddenClipboardTest still checks each getPrimaryClip signature against fakes.
+  - "app/src/main/java/com/inputleaf/android/shizuku/HiddenClipboard.kt"
   - "app/src/main/java/com/inputleaf/android/InputLeafApplication.kt"
   - "app/src/main/java/com/inputleaf/android/inject/AccessibilityInputService.kt"
   - "app/src/main/java/com/inputleaf/android/inject/AccessibilityInputInjector.kt"
