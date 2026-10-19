@@ -1,6 +1,7 @@
 package com.inputleaf.android.service
 
 import android.app.Service
+import android.content.ClipboardManager
 import android.content.Intent
 import android.content.res.Configuration
 import android.graphics.Point
@@ -72,6 +73,17 @@ class ConnectionService : Service() {
     private val hidKeyboardGate = HidAttachmentController()
     private val hidMouseGate = HidAttachmentController()
     private lateinit var prefs: AppPreferences
+    @Volatile private var clipboardSync: ClipboardSync? = null
+    private val deviceClipboard by lazy {
+        DeviceClipboard(this) { (injector as? ShizukuInputInjector)?.readClipboardText() }
+    }
+
+    // Only fires while Android lets this app see the clipboard (default IME or
+    // foreground); ClipboardSync.onLeave covers the rest.
+    private val clipboardListener = ClipboardManager.OnPrimaryClipChangedListener {
+        val sync = clipboardSync ?: return@OnPrimaryClipChangedListener
+        scope.launch(Dispatchers.IO) { sync.onLocalChanged() }
+    }
 
     private val pointerSpeedObserver = object : ContentObserver(Handler(Looper.getMainLooper())) {
         override fun onChange(selfChange: Boolean) {
@@ -154,6 +166,7 @@ class ConnectionService : Service() {
         }
 
         registerPointerSpeedObserver()
+        deviceClipboard.addListener(clipboardListener)
     }
 
     private fun registerPointerSpeedObserver() {
@@ -303,6 +316,12 @@ class ConnectionService : Service() {
                     }
                     prefs.saveTransport(serverIp, result.transport.name.lowercase())
                     coordinator.onConnectOk(serverIp, screenName, generation)
+                    clipboardSync = ClipboardSync(
+                        readLocal = deviceClipboard::read,
+                        applyLocal = { content -> scope.launch { deviceClipboard.write(content) } },
+                        sendGrab = { id, seq -> conn.sendClipboardGrab(id, seq) },
+                        sendData = { id, seq, data -> conn.sendClipboard(id, seq, data) },
+                    )
                     conn.clearHandshakeTimeout()
                     startEventLoop(conn, serverIp, screenName, generation)
                     startKeepAliveMonitor(conn, generation)
@@ -356,6 +375,10 @@ class ConnectionService : Service() {
         eventLoopJob = scope.launch(Dispatchers.IO) {
             conn.events.collect { event ->
                 if (!coordinator.isCurrentGeneration(generation)) return@collect
+                clipboardSync?.let { clipboard ->
+                    if (clipboard.onServerEvent(event)) return@collect
+                    if (event is InputLeapEvent.Enter) clipboard.onEnter(event.seqNum)
+                }
                 when (val result = coordinator.processEvent(event, generation, activePolicy)) {
                     is CoordinatorEventResult.Enter -> {
                         cancelLeaveDebounce()
@@ -369,6 +392,7 @@ class ConnectionService : Service() {
                     is CoordinatorEventResult.Leave -> {
                         injector?.onHidMouseLeave()
                         scheduleLeave(generation)
+                        clipboardSync?.onLeave()
                     }
                     is CoordinatorEventResult.KeepAlive -> {
                         conn.sendKeepAlive()
@@ -390,6 +414,7 @@ class ConnectionService : Service() {
                         dispatchInput(result.event)
                     }
                     is CoordinatorEventResult.Disconnected -> {
+                        clipboardSync = null
                         cancelLeaveDebounce()
                         applyCursorOverlay()
                         setHidKeyboardAttached(false)
@@ -614,6 +639,7 @@ class ConnectionService : Service() {
         keepAliveJob?.cancel()
         keepAliveJob = null
         if (!keepConnection) {
+            clipboardSync = null
             connection?.close()
             connection = null
         }
@@ -793,6 +819,7 @@ class ConnectionService : Service() {
 
     override fun onDestroy() {
         unregisterPointerSpeedObserver()
+        deviceClipboard.removeListener(clipboardListener)
         try {
             Shizuku.removeBinderReceivedListener(shizukuBinderReceivedListener)
             Shizuku.removeBinderDeadListener(shizukuBinderDeadListener)
